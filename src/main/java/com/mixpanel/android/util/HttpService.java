@@ -1,9 +1,7 @@
 package com.mixpanel.android.util;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.net.Uri;
+import android.net.*;
 
 import com.mixpanel.android.mpmetrics.MPConfig;
 
@@ -64,10 +62,26 @@ public class HttpService implements RemoteService {
             final NetworkInfo netInfo = cm.getActiveNetworkInfo();
             isOnline = netInfo != null && netInfo.isConnectedOrConnecting();
             MPLog.v(LOGTAG, "ConnectivityManager says we " + (isOnline ? "are" : "are not") + " online");
+
+
+if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+        Network[] allNetworks = cm.getAllNetworks();
+        StringBuilder allNetworkInfo = new StringBuilder();
+        if(allNetworks != null) for (Network network : allNetworks) {
+            NetworkInfo info = cm.getNetworkInfo(network);
+            allNetworkInfo.append('\n').append('\t').append(info == null ? "null" : info.toString());
+        }
+        String connectionInfo = String.format("ConnectivityManager found %d networks:%s", allNetworks == null ? 0 : allNetworks.length, allNetworkInfo.toString());
+        MPLog.v(LOGTAG, connectionInfo);
+}
+
+
         } catch (final SecurityException e) {
             isOnline = true;
             MPLog.v(LOGTAG, "Don't have permission to check connectivity, will assume we are online");
         }
+        // always be online for now
+        if(true) return true;
         return isOnline;
     }
 
@@ -109,8 +123,8 @@ public class HttpService implements RemoteService {
                     ((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
                 }
 
-                connection.setConnectTimeout(2000);
-                connection.setReadTimeout(10000);
+                connection.setConnectTimeout(60000);
+                connection.setReadTimeout(60000);
                 if (null != params) {
                     Uri.Builder builder = new Uri.Builder();
                     for (Map.Entry<String, Object> param : params.entrySet()) {
@@ -136,7 +150,7 @@ public class HttpService implements RemoteService {
                 in = null;
                 succeeded = true;
             } catch (final EOFException e) {
-                MPLog.d(LOGTAG, "Failure to connect, likely caused by a known issue with Android lib. Retrying.");
+                MPLog.d(LOGTAG, "Failure to connect, likely caused by a known issue with Android lib. Retrying. Exception: " + e.getMessage());
                 retries = retries + 1;
             } catch (final IOException e) {
                 if (connection.getResponseCode() >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE && connection.getResponseCode() <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) {
